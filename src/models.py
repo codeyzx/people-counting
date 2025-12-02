@@ -100,7 +100,7 @@ class StreamingConfig:
     jpeg_quality: int = 85
     max_frame_width: Optional[int] = 1280
     max_frame_height: Optional[int] = None
-    websocket_url: str = "ws://localhost:8000/device"
+    websocket_url: str = "ws://localhost:8001/device"
     frame_buffer_size: int = 10
 
 

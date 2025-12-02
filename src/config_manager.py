@@ -46,7 +46,7 @@ class WebSocketConfig:
         buffer_size: Maximum number of events to buffer when disconnected
         enable: Whether WebSocket is enabled
     """
-    url: str = "ws://localhost:8000/device"  # Detection devices use /device endpoint
+    url: str = "ws://localhost:8001/device"  # Detection devices use /device endpoint
     reconnect_interval: float = 1.0
     max_reconnect_interval: float = 60.0
     buffer_size: int = 1000

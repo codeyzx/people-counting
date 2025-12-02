@@ -9,7 +9,7 @@ function DashboardContent() {
   const { state, updateDevice, updateFrame, setConnectionStatus, setError } = useDeviceContext();
 
   // WebSocket URL - direct connection to backend
-  const wsUrl = 'ws://localhost:8000/ws';
+  const wsUrl = 'ws://localhost:8001/ws';
   
   console.log('='.repeat(50));
   console.log('[App] Dashboard initializing...');
