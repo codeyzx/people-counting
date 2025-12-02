@@ -12,7 +12,7 @@ import sys
 import os
 import asyncio
 from pathlib import Path
-from .models import Config
+from .models import Config, StreamingConfig
 from .detector import PersonDetector
 from .tracker import PersonTracker
 from .renderer import FrameRenderer
@@ -21,6 +21,7 @@ from .roi_filter import ROIFilter
 from .config_manager import ConfigManager, SystemConfig
 from .detector_factory import create_detector, validate_model_file, log_detector_info
 from .websocket_publisher import WebSocketPublisher
+from .frame_encoder import FrameEncoder
 
 
 def setup_logging():
@@ -140,6 +141,33 @@ Examples:
         '--use-env',
         action='store_true',
         help='Load configuration from environment variables'
+    )
+    
+    parser.add_argument(
+        '--enable-streaming',
+        action='store_true',
+        help='Enable video frame streaming to dashboard'
+    )
+    
+    parser.add_argument(
+        '--max-frame-rate',
+        type=float,
+        default=10.0,
+        help='Maximum frame rate for streaming (FPS, default: 10.0)'
+    )
+    
+    parser.add_argument(
+        '--jpeg-quality',
+        type=int,
+        default=85,
+        help='JPEG quality for frame encoding (1-100, default: 85)'
+    )
+    
+    parser.add_argument(
+        '--max-frame-width',
+        type=int,
+        default=1280,
+        help='Maximum frame width for streaming (default: 1280)'
     )
     
     return parser.parse_args()
@@ -287,12 +315,25 @@ async def async_main():
                 logger.warning("Continuing with full frame detection")
                 roi_filter = None
         
+        # Create streaming config
+        streaming_config = StreamingConfig()
+        if args.enable_streaming:
+            streaming_config.enable_streaming = True
+        if args.max_frame_rate:
+            streaming_config.max_frame_rate = args.max_frame_rate
+        if args.jpeg_quality:
+            streaming_config.jpeg_quality = args.jpeg_quality
+        if args.max_frame_width:
+            streaming_config.max_frame_width = args.max_frame_width
+        
         # Initialize WebSocket publisher if enabled
         if system_config.websocket.enable:
             logger.info("Initializing WebSocket publisher...")
+            
             websocket_publisher = WebSocketPublisher(
                 url=system_config.websocket.url,
                 buffer_size=system_config.websocket.buffer_size,
+                frame_buffer_size=streaming_config.frame_buffer_size,
                 reconnect_interval=system_config.websocket.reconnect_interval,
                 max_reconnect_interval=system_config.websocket.max_reconnect_interval
             )
@@ -304,6 +345,18 @@ async def async_main():
             else:
                 logger.warning("WebSocket connection failed, will retry in background")
         
+        # Initialize frame encoder if streaming is enabled
+        frame_encoder = None
+        if system_config.websocket.enable and args.enable_streaming:
+            logger.info("Initializing frame encoder for streaming...")
+            
+            frame_encoder = FrameEncoder(
+                quality=streaming_config.jpeg_quality,
+                max_width=streaming_config.max_frame_width,
+                max_height=streaming_config.max_frame_height
+            )
+            logger.info(f"Frame streaming enabled: {streaming_config.max_frame_rate} FPS, quality={streaming_config.jpeg_quality}")
+        
         # Create video processor
         processor = VideoProcessor(
             detector=detector,
@@ -311,7 +364,9 @@ async def async_main():
             renderer=renderer,
             roi_filter=roi_filter,
             websocket_publisher=websocket_publisher,
-            source_id=system_config.source_id
+            frame_encoder=frame_encoder,
+            source_id=system_config.source_id,
+            max_frame_rate=streaming_config.max_frame_rate if frame_encoder else None
         )
         
         # Process video
@@ -327,6 +382,7 @@ async def async_main():
         logger.info(f"People in last frame: {final_count}")
         if websocket_publisher:
             logger.info(f"Buffered events: {websocket_publisher.get_buffer_size()}")
+            logger.info(f"Buffered frames: {websocket_publisher.get_frame_buffer_size()}")
         logger.info("=" * 60)
         
         return 0

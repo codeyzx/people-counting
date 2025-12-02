@@ -34,7 +34,9 @@ class VideoProcessor:
         renderer: FrameRenderer,
         roi_filter: Optional[ROIFilter] = None,
         websocket_publisher=None,
-        source_id: str = "camera_01"
+        frame_encoder=None,
+        source_id: str = "camera_01",
+        max_frame_rate: Optional[float] = None
     ):
         """Initialize the processor with required components.
         
@@ -44,18 +46,25 @@ class VideoProcessor:
             renderer: FrameRenderer instance for visualizing results
             roi_filter: Optional ROIFilter instance for filtering detections by region
             websocket_publisher: Optional WebSocketPublisher for sending events
+            frame_encoder: Optional FrameEncoder for video streaming
             source_id: Unique identifier for this camera/source
+            max_frame_rate: Optional max frame rate for streaming (e.g., 10 FPS)
         """
         self.detector = detector
         self.tracker = tracker
         self.renderer = renderer
         self.roi_filter = roi_filter
         self.websocket_publisher = websocket_publisher
+        self.frame_encoder = frame_encoder
         self.source_id = source_id
+        self.max_frame_rate = max_frame_rate
         
         # Track previous state for detecting changes
         self.previous_count = 0
         self.previous_person_ids: Set[int] = set()
+        
+        # Frame rate limiting
+        self.last_frame_time = 0.0
         
         if roi_filter is not None:
             logger.info("VideoProcessor initialized with ROI filtering enabled")
@@ -66,6 +75,11 @@ class VideoProcessor:
             logger.info(f"VideoProcessor initialized with WebSocket publishing (source: {source_id})")
         else:
             logger.info("VideoProcessor initialized without WebSocket publishing")
+        
+        if frame_encoder is not None:
+            logger.info(f"VideoProcessor initialized with frame streaming (max_frame_rate: {max_frame_rate} FPS)")
+        else:
+            logger.info("VideoProcessor initialized without frame streaming")
     
     def process_video(self, input_source: Union[int, str], 
                      output_path: Optional[str] = None) -> int:
@@ -200,6 +214,21 @@ class VideoProcessor:
             cv2.destroyAllWindows()
             logger.debug("Windows destroyed")
 
+    
+    def should_send_frame(self, current_time: float) -> bool:
+        """Check if enough time has passed to send next frame.
+        
+        Args:
+            current_time: Current timestamp
+            
+        Returns:
+            True if frame should be sent, False otherwise
+        """
+        if self.max_frame_rate is None:
+            return True
+        
+        min_interval = 1.0 / self.max_frame_rate
+        return (current_time - self.last_frame_time) >= min_interval
     
     def _create_detection_event(
         self,
@@ -424,14 +453,51 @@ class VideoProcessor:
                     self.previous_count = current_count
                     self.previous_person_ids = current_person_ids
                 
+                # Frame streaming
+                if self.frame_encoder and self.websocket_publisher:
+                    current_time = time.time()
+                    
+                    if self.should_send_frame(current_time):
+                        try:
+                            # Encode frame
+                            encoded_frame = self.frame_encoder.encode_frame(output_frame)
+                            
+                            # Send frame
+                            await self.websocket_publisher.publish_frame(
+                                frame_data=encoded_frame,
+                                source_id=self.source_id,
+                                frame_number=frame_count,
+                                metadata={
+                                    'fps': round(current_fps, 2),
+                                    'resolution': f"{frame_width}x{frame_height}",
+                                    'quality': self.frame_encoder.quality
+                                }
+                            )
+                            
+                            self.last_frame_time = current_time
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to encode/send frame: {e}")
+                
                 # Get ROI points for visualization
                 roi_points = self.roi_filter.roi_points if self.roi_filter is not None else None
                 
                 # Render visualizations
                 output_frame = self.renderer.render(frame, tracked_people, current_count, roi_points)
                 
-                # Display frame
-                cv2.imshow("Person Detection & Counting", output_frame)
+                # Only display frame if not using WebSocket (standalone mode)
+                # When using WebSocket, preview is shown in the dashboard
+                if self.websocket_publisher is None:
+                    cv2.imshow("Person Detection & Counting", output_frame)
+                    
+                    # Check for ESC key press (only in standalone mode)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == 27:
+                        logger.info("ESC key pressed, terminating...")
+                        break
+                else:
+                    # In WebSocket mode, just yield control to allow async operations
+                    await asyncio.sleep(0.001)
                 
                 # Write frame to output video if specified
                 if out is not None:
@@ -444,15 +510,6 @@ class VideoProcessor:
                     avg_fps = frame_count / elapsed if elapsed > 0 else 0
                     logger.info(f"Processing: Frame {frame_count}, FPS: {avg_fps:.2f}, Count: {current_count}")
                     last_fps_log = current_time
-                
-                # Check for ESC key press
-                key = cv2.waitKey(1) & 0xFF
-                if key == 27:
-                    logger.info("ESC key pressed, terminating...")
-                    break
-                
-                # Allow other async tasks to run
-                await asyncio.sleep(0)
             
             # Calculate final statistics
             end_time = time.time()
@@ -506,5 +563,7 @@ class VideoProcessor:
                 out.release()
                 logger.debug("Video writer released")
             
-            cv2.destroyAllWindows()
-            logger.debug("Windows destroyed")
+            # Only destroy windows if we created them (standalone mode)
+            if self.websocket_publisher is None:
+                cv2.destroyAllWindows()
+                logger.debug("Windows destroyed")

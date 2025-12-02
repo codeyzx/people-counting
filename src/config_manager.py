@@ -40,13 +40,13 @@ class WebSocketConfig:
     """WebSocket connection configuration.
     
     Attributes:
-        url: WebSocket server URL
+        url: WebSocket server URL (detection devices connect to /device)
         reconnect_interval: Initial reconnection interval in seconds
         max_reconnect_interval: Maximum reconnection interval in seconds
         buffer_size: Maximum number of events to buffer when disconnected
         enable: Whether WebSocket is enabled
     """
-    url: str = "ws://localhost:8000/ws"
+    url: str = "ws://localhost:8000/device"  # Detection devices use /device endpoint
     reconnect_interval: float = 1.0
     max_reconnect_interval: float = 60.0
     buffer_size: int = 1000

@@ -82,6 +82,28 @@ class Config:
     roi_alpha: float = 0.3
 
 
+@dataclass
+class StreamingConfig:
+    """Configuration for video streaming.
+    
+    Attributes:
+        enable_streaming: Enable video frame streaming
+        max_frame_rate: Maximum frame rate for streaming (FPS)
+        jpeg_quality: JPEG quality for frame encoding (1-100)
+        max_frame_width: Optional maximum frame width for resizing
+        max_frame_height: Optional maximum frame height for resizing
+        websocket_url: WebSocket server URL for device connection
+        frame_buffer_size: Maximum number of frames to buffer
+    """
+    enable_streaming: bool = True
+    max_frame_rate: float = 10.0
+    jpeg_quality: int = 85
+    max_frame_width: Optional[int] = 1280
+    max_frame_height: Optional[int] = None
+    websocket_url: str = "ws://localhost:8000/device"
+    frame_buffer_size: int = 10
+
+
 class EventType(Enum):
     """Types of detection events."""
     UPDATE = "update"

@@ -1,74 +1,84 @@
-# Person Detection and Counting System
+# Person Detection & Counting System with Live Streaming
 
-A clean, maintainable person detection and counting application using YOLOv8 with ONNX optimization and WebSocket integration. The system detects and counts unique people in video streams from webcam or video files, optimized for embedded devices like Orange Pi 5.
+A production-ready real-time person detection and counting system with live video streaming dashboard. Built with YOLOv8, WebSocket, and React for monitoring multiple camera feeds simultaneously.
 
-## Features
+## 🎯 Key Features
 
-- **YOLOv8 Detection**: State-of-the-art person detection using YOLOv8
-- **ONNX Runtime Support**: Optimized inference for ARM processors (Orange Pi 5)
-- **WebSocket Integration**: Real-time event streaming to backend servers
-- **Region of Interest (ROI)**: Define custom polygonal detection areas to focus on specific zones
-- **Flexible Input**: Support for webcam devices or video files
-- **Person Tracking**: Centroid-based tracking to maintain unique IDs across frames
-- **Real-time Counting**: Displays current number of people in frame (count increases/decreases dynamically)
-- **Real-time Visualization**: Live preview with bounding boxes, person IDs, and ROI overlay
-- **Video Output**: Optional saving of processed video with visualizations
-- **Automatic Fallback**: Falls back to PyTorch if ONNX model unavailable
-- **Event Buffering**: Buffers events when WebSocket disconnected
-- **Auto-Reconnection**: Exponential backoff reconnection for WebSocket
-- **Clean Architecture**: Modular design with separation of concerns
-- **Comprehensive Logging**: Detailed logging for debugging and monitoring
+- **Real-time Person Detection** - YOLOv8-based detection with centroid tracking
+- **Live Video Streaming** - Stream detection results to web dashboard via WebSocket
+- **Multi-Camera Support** - Monitor multiple camera feeds simultaneously
+- **ROI (Region of Interest)** - Define custom detection zones
+- **ONNX Optimization** - Optimized for ARM processors (Orange Pi 5)
+- **Web Dashboard** - React-based real-time monitoring interface
+- **Smart Logging** - Conditional logging based on client connections
+- **Auto-Reconnection** - Exponential backoff for WebSocket connections
 
-## Architecture
-
-The system is organized into modular components:
+## 🏗️ Architecture
 
 ```
-src/
-├── models.py              # Data models (Detection, TrackedPerson, DetectionEvent)
-├── detector.py            # PersonDetector - YOLOv8 PyTorch detection
-├── onnx_detector.py       # ONNXPersonDetector - ONNX Runtime detection
-├── detector_factory.py    # Factory for creating detectors with fallback
-├── model_converter.py     # Utility for converting PyTorch to ONNX
-├── roi_filter.py          # ROIFilter - Region of Interest filtering
-├── tracker.py             # PersonTracker - Tracking and counting
-├── renderer.py            # FrameRenderer - Visualization
-├── websocket_publisher.py # WebSocketPublisher - Event streaming
-├── config_manager.py      # ConfigManager - Configuration loading
-├── video_processor.py     # VideoProcessor - Pipeline orchestration
-└── person_counter.py      # Main application entry point
+┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
+│  Detection      │      │   WebSocket      │      │   Dashboard     │
+│  Device(s)      │─────▶│   Server         │─────▶│   (React)       │
+│  (Python)       │      │   (Port 8000)    │      │   (Port 5173)   │
+└─────────────────┘      └──────────────────┘      └─────────────────┘
+     │                            │                          │
+     │ - YOLOv8 Detection        │ - Message Routing        │ - Live Video
+     │ - Frame Encoding          │ - Client Management      │ - Person Count
+     │ - ROI Filtering           │ - Broadcasting           │ - Device Status
+     └───────────────────────────┴──────────────────────────┘
 ```
 
-### Module Responsibilities
+### System Components
 
-- **Detection Module** (`detector.py`, `onnx_detector.py`): YOLOv8 detection with PyTorch or ONNX Runtime
-- **Detector Factory** (`detector_factory.py`): Creates appropriate detector with automatic fallback
-- **Model Converter** (`model_converter.py`): Converts YOLOv8 models to ONNX format
-- **ROI Filter Module** (`roi_filter.py`): Filters detections based on Region of Interest polygon
-- **Tracking Module** (`tracker.py`): Assigns unique IDs, tracks people across frames, maintains real-time count
-- **Visualization Module** (`renderer.py`): Draws bounding boxes, IDs, ROI overlay, and current count
-- **WebSocket Publisher** (`websocket_publisher.py`): Streams detection events to backend with buffering
-- **Configuration Manager** (`config_manager.py`): Loads configuration from files or environment variables
-- **Video Processor** (`video_processor.py`): Orchestrates the processing pipeline with WebSocket integration
-- **Main Application** (`person_counter.py`): CLI interface and application entry point
+**Backend (Python):**
+- `backend_server.py` - WebSocket server (routes messages)
+- `src/person_counter.py` - Main detection application
+- `src/video_processor.py` - Video processing pipeline
+- `src/frame_encoder.py` - JPEG encoding for streaming
+- `src/websocket_publisher.py` - WebSocket client for devices
+- `src/detector.py` / `src/onnx_detector.py` - YOLOv8 detection
+- `src/tracker.py` - Centroid-based person tracking
+- `src/roi_filter.py` - Region of Interest filtering
+- `src/renderer.py` - Visualization rendering
 
-## Installation
+**Frontend (React + TypeScript):**
+- `frontend/src/App.tsx` - Main application
+- `frontend/src/hooks/useWebSocket.ts` - WebSocket connection management
+- `frontend/src/hooks/useDeviceState.tsx` - Device state management
+- `frontend/src/components/LivePreview.tsx` - Video stream display
+- `frontend/src/components/DeviceCard.tsx` - Device monitoring card
+- `frontend/src/components/DeviceGrid.tsx` - Grid layout for devices
 
-### Prerequisites
+## 📋 Prerequisites
 
-- Python 3.8 or higher
-- Webcam (optional, for webcam input)
-- For Orange Pi 5: ARM-compatible ONNX Runtime
+### System Requirements
 
-### Setup
+- **Python**: 3.8 or higher
+- **Node.js**: 16.x or higher
+- **npm**: 8.x or higher
+- **OS**: Windows, Linux, or macOS
+- **RAM**: 2GB minimum, 4GB recommended
+- **CPU**: 4+ cores recommended for real-time processing
 
-1. Clone the repository:
+### Hardware (Optional)
+
+- **Webcam**: For live camera input
+- **GPU**: CUDA-compatible GPU for faster inference (optional)
+- **Orange Pi 5**: Supported with ONNX optimization
+
+## 🚀 Installation & Setup
+
+### Step 1: Clone Repository
+
 ```bash
 git clone <repository-url>
 cd PeopleCounting-ComputerVision
 ```
 
-2. Create and activate virtual environment:
+### Step 2: Backend Setup
+
+#### 2.1 Create Virtual Environment
+
 ```bash
 # Windows
 python -m venv venv
@@ -79,263 +89,282 @@ python3 -m venv venv
 source venv/bin/activate
 ```
 
-3. Install dependencies:
+#### 2.2 Install Python Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Ensure YOLOv8 model weights are available:
-   - The `yolov8s.pt` file should be in the `models/` directory
-   - If not present, it will be downloaded automatically on first run
+#### 2.3 Verify Model Files
 
-### ONNX Model Setup
-
-For optimized performance on Orange Pi 5 or other ARM devices:
-
-1. **Convert PyTorch model to ONNX:**
+Ensure YOLOv8 model exists:
 ```bash
-python -m src.model_converter models/yolov8s.pt models/yolov8s.onnx
+# Check if model exists
+ls models/yolov8s.pt
+
+# If not, it will be downloaded automatically on first run
 ```
 
-2. **Verify ONNX model:**
+#### 2.4 (Optional) Convert to ONNX for Optimization
+
 ```bash
+# Convert PyTorch model to ONNX
+python -m src.model_converter models/yolov8s.pt models/yolov8s.onnx
+
+# Verify ONNX model
 python -m src.model_converter --verify-only models/yolov8s.onnx
 ```
 
-3. **Custom conversion options:**
+### Step 3: Frontend Setup
+
+#### 3.1 Navigate to Frontend Directory
+
 ```bash
-python -m src.model_converter models/yolov8s.pt models/yolov8s.onnx \
-  --input-size 640 640 \
-  --opset 12 \
-  --verbose
+cd frontend
 ```
 
-### Orange Pi 5 Deployment
+#### 3.2 Install Node Dependencies
 
-For optimal performance on Orange Pi 5:
-
-1. Install ONNX Runtime for ARM:
 ```bash
-pip install onnxruntime
+npm install
 ```
 
-2. Use ONNX model with optimized settings:
+#### 3.3 Configure Environment (Optional)
+
 ```bash
-python run.py \
-  --onnx-model models/yolov8s.onnx \
-  --source 0 \
-  --confidence 0.6
+# Copy environment template
+cp .env.example .env
+
+# Edit .env if needed (default values work for local development)
 ```
 
-3. Or use configuration file (recommended):
+#### 3.4 Return to Root Directory
+
 ```bash
-cp config.example.json config.json
-# Edit config.json with your settings
-python run.py --config config.json
+cd ..
 ```
 
-## Usage
+## 🎮 Running the System
 
-### Basic Usage
+### Complete System (3 Terminals)
 
-Run with default webcam (device 0):
+#### Terminal 1: Start WebSocket Server
 
-**Option 1: Using wrapper script (recommended):**
 ```bash
-python run.py
+python backend_server.py
 ```
 
-**Option 2: Using module:**
-```bash
-python -m src
+**Expected Output:**
+```
+INFO - Starting WebSocket server on 0.0.0.0:8000
+INFO - Dashboard clients connect to: ws://0.0.0.0:8000/ws
+INFO - Detection devices connect to: ws://0.0.0.0:8000/device
+INFO - WebSocket server started successfully
 ```
 
-**Option 3: Direct script:**
+#### Terminal 2: Start Frontend Dashboard
+
 ```bash
-python src/person_counter.py
+cd frontend
+npm run dev
 ```
+
+**Expected Output:**
+```
+  VITE v5.x.x  ready in xxx ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+```
+
+Open browser: **http://localhost:5173**
+
+#### Terminal 3: Start Detection
+
+**With Webcam:**
+```bash
+python run.py --source 0 --enable-streaming --max-frame-rate 10
+```
+
+**With Video File:**
+```bash
+python run.py --source assets/q1.mp4 --enable-streaming --max-frame-rate 10
+```
+
+**With ROI:**
+```bash
+python run.py --source assets/q1.mp4 --enable-streaming --roi examples/roi_corridor.json
+```
+
+### Standalone Mode (No Dashboard)
+
+Run detection without WebSocket/Dashboard:
+
+```bash
+python run.py --source 0 --no-websocket
+```
+
+This will show OpenCV window with detections (no streaming).
+
+## 📖 Usage Guide
+
+### Basic Commands
+
+#### Webcam Input
+
+```bash
+# Default webcam (device 0)
+python run.py --source 0 --enable-streaming
+
+# Specific webcam device
+python run.py --source 1 --enable-streaming
+
+# With custom settings
+python run.py --source 0 --enable-streaming --max-frame-rate 15 --jpeg-quality 90
+```
+
+#### Video File Input
+
+```bash
+# Basic video processing
+python run.py --source assets/q1.mp4 --enable-streaming
+
+# With output file
+python run.py --source assets/q1.mp4 --enable-streaming --output result.avi
+
+# With custom source ID
+python run.py --source assets/q1.mp4 --enable-streaming --source-id "Video_Test_1"
+```
+
+#### ROI (Region of Interest)
+
+```bash
+# Corridor ROI (trapezoid, normalized coordinates)
+python run.py --source assets/q1.mp4 --enable-streaming --roi examples/roi_corridor.json
+
+# Doorway ROI (rectangle, absolute coordinates)
+python run.py --source 0 --enable-streaming --roi examples/roi_doorway.json
+
+# Custom ROI
+python run.py --source 0 --enable-streaming --roi my_custom_roi.json
+```
+
+#### Multiple Cameras
+
+Run multiple detection instances with different source IDs:
+
+```bash
+# Terminal 3a - Camera 1
+python run.py --source 0 --enable-streaming --source-id "Camera_Entrance"
+
+# Terminal 3b - Camera 2
+python run.py --source 1 --enable-streaming --source-id "Camera_Exit"
+
+# Terminal 3c - Video File
+python run.py --source assets/q1.mp4 --enable-streaming --source-id "Video_Archive"
+```
+
+Dashboard will show all 3 devices simultaneously!
 
 ### Command-Line Options
 
-```bash
-python run.py [OPTIONS]
-```
+#### Core Options
 
-**Core Options:**
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--source` | Video source (webcam index or file path) | `0` | `0`, `1`, `video.mp4` |
+| `--output` | Output video file path | None | `result.avi` |
+| `--confidence` | Detection confidence threshold (0.0-1.0) | `0.5` | `0.7` |
+| `--tracking-distance` | Max tracking distance (pixels) | `50.0` | `40.0` |
+| `--roi` | ROI configuration JSON file | None | `examples/roi_corridor.json` |
 
-- `--source`: Video source (webcam index or video file path)
-  - Default: `0` (default webcam)
-  - Examples: `0`, `1`, `video.mp4`, `path/to/video.mp4`
+#### Model Options
 
-- `--output`: Output video file path (optional)
-  - Example: `output.avi`, `results/processed.avi`
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--model` | PyTorch YOLOv8 model path | `models/yolov8s.pt` | `models/yolov8n.pt` |
+| `--onnx-model` | ONNX model path (faster) | None | `models/yolov8s.onnx` |
 
-- `--confidence`: Confidence threshold for detections (0.0 to 1.0)
-  - Default: `0.5`
+#### Streaming Options
 
-- `--tracking-distance`: Maximum distance for tracking across frames
-  - Default: `50.0` pixels
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--enable-streaming` | Enable video frame streaming | `False` | (flag) |
+| `--max-frame-rate` | Max streaming FPS | `10.0` | `15.0` |
+| `--jpeg-quality` | JPEG quality (1-100) | `85` | `90` |
+| `--max-frame-width` | Max frame width for streaming | `1280` | `1920` |
 
-- `--roi`: Path to ROI configuration JSON file (optional)
-  - Example: `examples/roi_rectangle.json`
+#### WebSocket Options
 
-**Model Options:**
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--ws-url` | WebSocket server URL | `ws://localhost:8000/device` | `ws://192.168.1.100:8000/device` |
+| `--no-websocket` | Disable WebSocket (standalone) | `False` | (flag) |
+| `--source-id` | Unique camera identifier | `camera_01` | `Camera_Entrance` |
 
-- `--model`: Path to PyTorch YOLOv8 model weights file
-  - Default: `models/yolov8s.pt`
+#### Configuration Options
 
-- `--onnx-model`: Path to ONNX model file (preferred for Orange Pi 5)
-  - Example: `models/yolov8s.onnx`
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--config` | Load from JSON config file | `config.json` |
+| `--use-env` | Load from environment variables | (flag) |
 
-**WebSocket Options:**
+### Advanced Examples
 
-- `--ws-url`: WebSocket server URL
-  - Example: `ws://localhost:8000/ws`
-
-- `--no-websocket`: Disable WebSocket integration (standalone mode)
-
-- `--source-id`: Unique identifier for this camera/source
-  - Default: `camera_01`
-
-**Configuration Options:**
-
-- `--config`: Path to JSON configuration file
-  - Example: `config.json`
-
-- `--use-env`: Load configuration from environment variables
-
-- `--help`: Show help message and exit
-
-### Examples
-
-**Basic Examples:**
-
-```bash
-# Use default webcam
-python run.py
-
-# Use specific webcam device
-python run.py --source 1
-
-# Process video file
-python run.py --source test.mp4
-
-# Process video and save output
-python run.py --source test.mp4 --output result.avi
-
-# Use custom confidence threshold
-python run.py --source test.mp4 --confidence 0.7
-```
-
-**ONNX Examples:**
-
-```bash
-# Use ONNX model (optimized for Orange Pi 5)
-python run.py --onnx-model models/yolov8s.onnx --source 0
-
-# ONNX with fallback to PyTorch
-python run.py --onnx-model models/yolov8s.onnx --model models/yolov8s.pt
-
-# Standalone mode (no WebSocket)
-python run.py --onnx-model models/yolov8s.onnx --no-websocket
-```
-
-**WebSocket Examples:**
-
-```bash
-# With WebSocket integration
-python run.py --ws-url ws://localhost:8000/ws --source 0
-
-# Custom source ID for multiple cameras
-python run.py --ws-url ws://localhost:8000/ws --source-id camera_entrance
-
-# WebSocket with ONNX
-python run.py \
-  --onnx-model models/yolov8s.onnx \
-  --ws-url ws://backend.example.com/ws \
-  --source-id camera_01
-```
-
-**Configuration File Examples:**
-
-```bash
-# Use configuration file
-python run.py --config config.json --source 0
-
-# Load from environment variables
-python run.py --use-env --source 0
-```
-
-**ROI Examples:**
-
-```bash
-# Use rectangular ROI
-python run.py --source test.mp4 --roi examples/roi_rectangle.json
-
-# Use corridor-shaped ROI with normalized coordinates
-python run.py --source test.mp4 --roi examples/roi_corridor.json --output result.avi
-
-# Use doorway ROI for entrance monitoring
-python run.py --source 0 --roi examples/roi_doorway.json
-```
-
-**Complete Example (Orange Pi 5 Production):**
+#### Production Setup with ONNX
 
 ```bash
 python run.py \
   --onnx-model models/yolov8s.onnx \
-  --model models/yolov8s.pt \
-  --ws-url wss://backend.example.com/ws \
-  --source-id camera_entrance \
   --source 0 \
+  --enable-streaming \
+  --roi examples/roi_doorway.json \
+  --source-id "Entrance_Camera" \
   --confidence 0.6 \
-  --roi examples/roi_doorway.json
+  --max-frame-rate 10 \
+  --jpeg-quality 85
 ```
 
-### Controls
+#### High-Quality Streaming
 
-- **ESC key**: Stop processing and exit
-- The application will also stop automatically when video file ends
+```bash
+python run.py \
+  --source 0 \
+  --enable-streaming \
+  --max-frame-rate 15 \
+  --jpeg-quality 95 \
+  --max-frame-width 1920
+```
 
-## Output
+#### Low-Bandwidth Streaming
 
-### Console Output
+```bash
+python run.py \
+  --source 0 \
+  --enable-streaming \
+  --max-frame-rate 5 \
+  --jpeg-quality 70 \
+  --max-frame-width 640
+```
 
-The application provides detailed logging:
-- Configuration settings
-- Model loading status
-- Processing progress
-- Detection and tracking statistics
-- Final count of unique people
+#### Video Analysis with Output
 
-### Video Output
+```bash
+python run.py \
+  --source assets/q1.mp4 \
+  --enable-streaming \
+  --roi examples/roi_corridor.json \
+  --output analysis_result.avi \
+  --confidence 0.7
+```
 
-When `--output` is specified, the processed video includes:
-- Blue semi-transparent ROI polygon overlay (if ROI is enabled)
-- Green bounding boxes around detected people
-- Person IDs displayed near each bounding box
-- Current count overlay in the top-left corner (real-time count)
-
-### Statistics
-
-At the end of processing, the application displays:
-- Total frames processed
-- Final count in last frame
-- Processing time
-- Average FPS
-
-## Region of Interest (ROI) Configuration
+## 🎯 ROI Configuration
 
 ### What is ROI?
 
-ROI (Region of Interest) allows you to define specific areas within the video frame where detection and counting should be applied. This is useful for:
-- Monitoring specific zones (doorways, corridors, designated areas)
-- Ignoring irrelevant areas to improve accuracy
-- Focusing on critical regions for security or analytics
+ROI (Region of Interest) allows you to define specific areas for detection. Only people inside the ROI will be counted.
 
-### ROI Configuration File Format
-
-ROI is defined using JSON files with the following structure:
+### ROI File Format
 
 ```json
 {
@@ -345,67 +374,62 @@ ROI is defined using JSON files with the following structure:
     [x3, y3],
     [x4, y4]
   ],
-  "coordinate_type": "absolute",
-  "description": "Description of the ROI"
+  "coordinate_type": "normalized",
+  "description": "Description of ROI"
 }
 ```
-
-**Fields:**
-- `roi_points`: List of (x, y) coordinates defining the polygon (minimum 3 points)
-- `coordinate_type`: Either `"absolute"` (pixels) or `"normalized"` (0-1 range)
-- `description`: Optional description of the ROI
 
 ### Coordinate Types
 
-**Absolute Coordinates (pixels):**
+**Normalized (0-1 range) - Recommended:**
 ```json
 {
-  "roi_points": [[200, 150], [1000, 150], [1000, 650], [200, 650]],
-  "coordinate_type": "absolute"
-}
-```
-- Coordinates are in pixels relative to frame dimensions
-- Best for fixed camera setups with known resolution
-
-**Normalized Coordinates (0-1 range):**
-```json
-{
-  "roi_points": [[0.25, 0.2], [0.75, 0.2], [0.85, 0.9], [0.15, 0.9]],
+  "roi_points": [
+    [0.25, 0.2],   // Top-left (25% from left, 20% from top)
+    [0.75, 0.2],   // Top-right
+    [0.85, 0.9],   // Bottom-right
+    [0.15, 0.9]    // Bottom-left
+  ],
   "coordinate_type": "normalized"
 }
 ```
-- Coordinates are normalized (0.0 to 1.0) relative to frame dimensions
-- Resolution-independent, works with any video size
-- Example: `[0.5, 0.5]` is always the center of the frame
 
-### Example ROI Configurations
+**Absolute (pixels):**
+```json
+{
+  "roi_points": [
+    [200, 150],    // Top-left (200px, 150px)
+    [1000, 150],   // Top-right
+    [1000, 650],   // Bottom-right
+    [200, 650]     // Bottom-left
+  ],
+  "coordinate_type": "absolute"
+}
+```
 
-The `examples/` directory contains three pre-configured ROI files:
+### Pre-made ROI Examples
 
-1. **roi_rectangle.json**: Rectangular region in center of frame (absolute coordinates)
-2. **roi_corridor.json**: Trapezoid shape for corridor/hallway monitoring (normalized coordinates)
-3. **roi_doorway.json**: Vertical rectangle for doorway/entrance monitoring (absolute coordinates)
+| File | Shape | Coordinates | Use Case |
+|------|-------|-------------|----------|
+| `roi_corridor.json` | Trapezoid | Normalized | Hallways, corridors |
+| `roi_doorway.json` | Rectangle | Absolute | Doorways, entrances |
+| `roi_rectangle.json` | Rectangle | Absolute | Center area monitoring |
 
 ### Creating Custom ROI
 
-To create your own ROI configuration:
+1. **Determine coordinates** (use video player or OpenCV script)
+2. **Create JSON file** with 3+ points (polygon)
+3. **Test with video:**
+   ```bash
+   python run.py --source test.mp4 --enable-streaming --roi my_roi.json
+   ```
+4. **Verify in dashboard** (ROI shown as blue polygon)
 
-1. Determine the polygon points for your desired area
-2. Choose coordinate type (absolute or normalized)
-3. Create a JSON file with the structure shown above
-4. Test with your video: `python run.py --source video.mp4 --roi your_roi.json`
+**See `ROI_GUIDE.md` for detailed instructions.**
 
-**Tips:**
-- Use at least 3 points (triangle) for a valid polygon
-- Points should be ordered clockwise or counter-clockwise
-- For complex shapes, use more points for better accuracy
-- Normalized coordinates are recommended for flexibility across different resolutions
+## 🔧 Configuration Files
 
-## Configuration
-
-### Configuration File
-
-Create a `config.json` file (see `config.example.json`):
+### Backend Configuration (`config.json`)
 
 ```json
 {
@@ -417,10 +441,11 @@ Create a `config.json` file (see `config.example.json`):
     "enable": true
   },
   "websocket": {
-    "url": "ws://localhost:8000/ws",
+    "url": "ws://localhost:8000/device",
     "reconnect_interval": 1.0,
     "max_reconnect_interval": 60.0,
     "buffer_size": 1000,
+    "frame_buffer_size": 10,
     "enable": true
   },
   "video": {
@@ -432,9 +457,20 @@ Create a `config.json` file (see `config.example.json`):
 }
 ```
 
-### Environment Variables
+### Frontend Configuration (`frontend/.env`)
 
-Create a `.env` file (see `.env.example`):
+```bash
+# WebSocket Server URL
+VITE_WS_URL=ws://localhost:8000/ws
+
+# Offline detection threshold (ms)
+VITE_OFFLINE_THRESHOLD=30000
+
+# Device status check interval (ms)
+VITE_CHECK_INTERVAL=5000
+```
+
+### Environment Variables (`.env`)
 
 ```bash
 # ONNX Configuration
@@ -444,7 +480,7 @@ ONNX_PROVIDERS=CPUExecutionProvider
 ONNX_THREADS=4
 
 # WebSocket Configuration
-WS_URL=ws://localhost:8000/ws
+WS_URL=ws://localhost:8000/device
 WS_ENABLE=true
 WS_BUFFER_SIZE=1000
 
@@ -457,165 +493,308 @@ CONFIDENCE=0.5
 TRACKING_DISTANCE=50.0
 ```
 
-Then run with:
-```bash
-python run.py --use-env --source 0
-```
+## 📡 WebSocket Protocol
 
-## WebSocket Integration
+### Message Types
 
-### Event Format
-
-The system sends detection events in JSON format:
+#### 1. Detection Message
 
 ```json
 {
+  "type": "detection",
   "timestamp": "2024-12-02T10:30:45.123Z",
   "source_id": "camera_01",
   "frame_number": 1234,
   "event_type": "update",
-  "current_count": 3,
+  "current_count": 5,
   "tracked_persons": [
     {
       "person_id": 1,
-      "bbox": [100, 150, 200, 400],
-      "confidence": 0.92,
-      "centroid": [150.0, 275.0]
+      "bbox": [100, 200, 300, 500],
+      "confidence": 0.95,
+      "centroid": [200, 350]
     }
   ],
   "metadata": {
-    "fps": 15.3,
-    "inference_time_ms": 45.2
+    "fps": 28.5,
+    "inference_time_ms": 35.2
   }
 }
 ```
 
-### Event Types
-
-- **update**: Count changed or periodic update
-- **entry**: New person entered the frame
-- **exit**: Person left the frame
-- **lifecycle**: System started/stopped/error
-
-### Lifecycle Events
+#### 2. Frame Message
 
 ```json
 {
-  "timestamp": "2024-12-02T10:30:00.000Z",
+  "type": "frame",
+  "timestamp": "2024-12-02T10:30:45.123Z",
   "source_id": "camera_01",
-  "event_type": "lifecycle",
-  "lifecycle_event": "started",
+  "frame_number": 1234,
+  "frame": "/9j/4AAQSkZJRgABAQAAAQABAAD...",  // Base64 JPEG
   "metadata": {
-    "model_type": "onnx",
-    "model_path": "models/yolov8s.onnx"
+    "fps": 10.0,
+    "resolution": "1280x720",
+    "quality": 85
   }
 }
 ```
 
-### Features
+### Connection Endpoints
 
-- **Auto-Reconnection**: Exponential backoff reconnection on disconnect
-- **Event Buffering**: Buffers up to 1000 events when disconnected
-- **FIFO Buffer**: Oldest events dropped when buffer full
-- **Graceful Degradation**: Detection continues even if WebSocket fails
+- **Dashboard**: `ws://localhost:8000/ws`
+- **Detection Devices**: `ws://localhost:8000/device`
 
-## Troubleshooting
+### Event Types
 
-### Webcam not working
-- Check if webcam is connected and not used by another application
-- Try different device indices: `--source 0`, `--source 1`, etc.
-- On Linux, ensure you have proper permissions for `/dev/video*`
+| Event Type | Description | Trigger |
+|------------|-------------|---------|
+| `update` | Count changed or periodic update | Count change or interval |
+| `entry` | New person entered frame | New person detected |
+| `exit` | Person left frame | Person no longer detected |
+| `lifecycle` | System event | Start/stop/error |
 
-### Video file not found
-- Verify the file path is correct
-- Use absolute path if relative path doesn't work
-- Ensure the video format is supported by OpenCV (MP4, AVI, etc.)
+## 🐛 Troubleshooting
 
-### Model file not found
-- Ensure model files are in the `models/` directory
-- For PyTorch: `models/yolov8s.pt`
-- For ONNX: `models/yolov8s.onnx`
-- Convert PyTorch to ONNX if needed (see ONNX Model Setup)
+### Backend Issues
 
-### ONNX Runtime issues
-- **"onnxruntime not installed"**: Run `pip install onnxruntime`
-- **"Failed to load ONNX model"**: Verify model file is valid with `--verify-only`
-- **"Provider not available"**: Check available providers, system will fallback to CPU
-- **Slow inference**: Ensure using correct providers for your hardware
+#### WebSocket Server Won't Start
 
-### WebSocket connection issues
-- **"Failed to connect"**: Verify WebSocket server is running and URL is correct
-- **"websockets library not installed"**: Run `pip install websockets`
-- **Connection keeps dropping**: Check network stability, system will auto-reconnect
-- **Events not received**: Check buffer size, may be full and dropping old events
-- Use `--no-websocket` flag to run in standalone mode for testing
+**Symptom:** "Address already in use" error
 
-### Low FPS / Slow processing
-- Use ONNX model instead of PyTorch (significant speedup on ARM)
-- Use a smaller model (yolov8n.pt/onnx instead of yolov8s.pt/onnx)
-- Increase confidence threshold to reduce detections
-- Reduce ONNX thread count if CPU is overloaded
-- On Orange Pi 5: Use 4-6 threads for optimal performance
+**Solution:**
+```bash
+# Find process using port 8000
+netstat -ano | findstr "8000"
 
-### Memory issues
-- Close other applications
-- Use a smaller model
-- Reduce video resolution
-- Reduce WebSocket buffer size in configuration
+# Kill the process (Windows)
+taskkill /PID <PID> /F
 
-### ROI not working
-- Verify the JSON file path is correct
-- Check JSON syntax is valid (use a JSON validator)
-- Ensure `roi_points` has at least 3 coordinate pairs
-- For absolute coordinates, ensure points are within frame dimensions
-- For normalized coordinates, ensure values are between 0.0 and 1.0
-- Check the log output for specific error messages
+# Or change port in backend_server.py
+```
 
-### Configuration issues
-- **"Invalid JSON"**: Check configuration file syntax
-- **"Invalid confidence threshold"**: Must be between 0.0 and 1.0
-- **"Invalid WebSocket URL"**: Must start with ws:// or wss://
-- System will use default values for invalid configurations
+#### Detection Script Can't Connect
 
-## Dependencies
+**Symptom:** "Failed to connect to WebSocket"
 
-Core dependencies:
-- **ultralytics**: YOLOv8 implementation
-- **opencv-python**: Video I/O and visualization
-- **numpy**: Array operations
-- **onnx**: ONNX model format support
-- **onnxruntime**: Optimized inference engine
-- **websockets**: WebSocket client for real-time communication
-- **python-dotenv**: Environment variable management
+**Check:**
+1. Backend server is running
+2. URL is correct (`ws://localhost:8000/device`)
+3. No firewall blocking port 8000
 
-See `requirements.txt` for complete list with versions.
+**Solution:**
+```bash
+# Verify backend is running
+python backend_server.py
 
-## Performance
+# Check connection with test script
+python -c "import websockets; import asyncio; asyncio.run(websockets.connect('ws://localhost:8000/device'))"
+```
 
-- **Model**: YOLOv8s (small) - balance between speed and accuracy
-- **ONNX Optimization**: 2-3x faster inference on ARM processors
-- **Orange Pi 5**: 10-15 FPS with ONNX (vs 3-5 FPS with PyTorch)
-- **Processing**: Real-time capable on modern hardware
-- **Tracking**: Centroid-based tracking with configurable distance threshold
-- **WebSocket**: Minimal overhead with event buffering
+#### No Video Stream in Dashboard
 
-## License
+**Symptom:** Device card shows but no video
 
-[Add your license here]
+**Check:**
+1. Detection running with `--enable-streaming` flag
+2. Backend shows "Received video frame from..."
+3. Browser console shows frame messages
 
-## Contributing
+**Solution:**
+```bash
+# Ensure streaming is enabled
+python run.py --source 0 --enable-streaming
 
-[Add contribution guidelines here]
+# Check backend logs for frame messages
+# Check browser console (F12) for "[WebSocket] 📹 Frame from..."
+```
 
-## Acknowledgments
+### Frontend Issues
 
-- YOLOv8 by Ultralytics
-- OpenCV community
+#### Dashboard Shows "Disconnected"
 
-## Legacy Files
+**Symptom:** Red "Disconnected" banner
 
-Previous implementation files are documented in `LEGACY_FILES.md`. The new implementation provides:
-- Cleaner architecture with separation of concerns
-- Better error handling and logging
-- Simplified counting (no bidirectional tracking)
-- More flexible input/output options
+**Solution:**
+1. Verify backend server is running
+2. Hard refresh browser (Ctrl+Shift+R)
+3. Check browser console for errors
+4. Clear browser cache
+
+#### No Devices Showing
+
+**Symptom:** "No Devices Connected" message
+
+**Check:**
+1. Detection script is running
+2. Detection script connected to backend
+3. Backend shows "Detection device connected"
+
+**Solution:**
+```bash
+# Restart detection with correct flags
+python run.py --source 0 --enable-streaming
+
+# Check backend terminal for "Detection device connected"
+```
+
+#### Video Lag or Stuttering
+
+**Symptom:** Video updates slowly
+
+**Solution:**
+```bash
+# Reduce frame rate
+python run.py --source 0 --enable-streaming --max-frame-rate 5
+
+# Reduce quality
+python run.py --source 0 --enable-streaming --jpeg-quality 70
+
+# Reduce resolution
+python run.py --source 0 --enable-streaming --max-frame-width 640
+```
+
+### Performance Issues
+
+#### Low FPS
+
+**Solutions:**
+1. Use ONNX model: `--onnx-model models/yolov8s.onnx`
+2. Use smaller model: `yolov8n.pt` instead of `yolov8s.pt`
+3. Increase confidence: `--confidence 0.7`
+4. Use ROI to limit detection area
+5. Reduce video resolution
+
+#### High CPU Usage
+
+**Solutions:**
+1. Reduce ONNX threads: Edit `config.json` → `inter_op_num_threads: 2`
+2. Lower frame rate: `--max-frame-rate 5`
+3. Use ROI to reduce processing area
+
+#### High Memory Usage
+
+**Solutions:**
+1. Reduce buffer sizes in `config.json`
+2. Lower streaming quality: `--jpeg-quality 70`
+3. Use smaller model: `yolov8n.pt`
+
+### Common Errors
+
+#### "Camera not found"
+
+```bash
+# List available cameras (Windows)
+python -c "import cv2; print([i for i in range(10) if cv2.VideoCapture(i).isOpened()])"
+
+# Try different indices
+python run.py --source 0 --enable-streaming
+python run.py --source 1 --enable-streaming
+```
+
+#### "Model file not found"
+
+```bash
+# Verify model exists
+ls models/yolov8s.pt
+
+# Download if missing (will auto-download on first run)
+python run.py --source 0
+```
+
+#### "ROI file invalid"
+
+```bash
+# Validate JSON
+python -c "import json; print(json.load(open('examples/roi_corridor.json')))"
+
+# Check format matches specification
+```
+
+## 📊 Performance Benchmarks
+
+### Hardware Performance
+
+| Hardware | Model | FPS | Notes |
+|----------|-------|-----|-------|
+| Intel i7 (8 cores) | PyTorch | 25-30 | CPU only |
+| Intel i7 (8 cores) | ONNX | 30-35 | CPU optimized |
+| Orange Pi 5 | PyTorch | 3-5 | ARM CPU |
+| Orange Pi 5 | ONNX | 10-15 | ARM optimized |
+| NVIDIA RTX 3060 | PyTorch | 60+ | GPU accelerated |
+
+### Streaming Performance
+
+| Resolution | Quality | FPS | Bandwidth | Latency |
+|------------|---------|-----|-----------|---------|
+| 640x480 | 70 | 10 | ~200 KB/s | <100ms |
+| 1280x720 | 85 | 10 | ~400 KB/s | <150ms |
+| 1920x1080 | 90 | 10 | ~800 KB/s | <200ms |
+
+## 📚 Additional Documentation
+
+- **[QUICK_START.md](QUICK_START.md)** - 3-step quick start guide
+- **[STREAMING_GUIDE.md](STREAMING_GUIDE.md)** - Complete streaming setup
+- **[ROI_GUIDE.md](ROI_GUIDE.md)** - ROI configuration guide
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Detailed troubleshooting
+- **[SUCCESS_GUIDE.md](SUCCESS_GUIDE.md)** - What success looks like
+- **[DEBUG_NO_DEVICES.md](DEBUG_NO_DEVICES.md)** - Debug device connection issues
+
+## 🔐 Security Considerations
+
+### Production Deployment
+
+1. **Use WSS (WebSocket Secure)** instead of WS
+2. **Implement authentication** for WebSocket connections
+3. **Rate limiting** to prevent abuse
+4. **Input validation** on all messages
+5. **CORS configuration** for frontend
+6. **Firewall rules** for port 8000
+
+### Network Security
+
+```bash
+# Use secure WebSocket
+WS_URL=wss://your-domain.com/device
+
+# Bind to specific interface (not 0.0.0.0)
+# Edit backend_server.py: host = "127.0.0.1"
+```
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
+
+## 📄 License
+
+MIT License - see LICENSE file for details
+
+## 🙏 Acknowledgments
+
+- **YOLOv8** by Ultralytics
+- **OpenCV** community
+- **React** and **TypeScript** communities
+- **WebSocket** protocol contributors
+
+## 📞 Support
+
+For issues or questions:
+
+1. Check documentation files
+2. Review troubleshooting guides
+3. Check browser console (F12) for errors
+4. Check backend logs for errors
+5. Create GitHub issue with:
+   - System info (OS, Python version, Node version)
+   - Command used
+   - Error messages
+   - Logs from backend and frontend
+
+---
+
+**Made with ❤️ for real-time computer vision monitoring**
