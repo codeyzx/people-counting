@@ -1,0 +1,4 @@
+venv/
+.kiro/
+__pycache__
+assets/

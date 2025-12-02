@@ -1,0 +1,10 @@
+{
+  "roi_points": [
+    [200, 150],
+    [1000, 150],
+    [1000, 650],
+    [200, 650]
+  ],
+  "coordinate_type": "absolute",
+  "description": "Rectangular ROI in center of frame (800x500 pixels). Suitable for 1280x720 or higher resolution videos. Coordinates are in absolute pixels."
+}

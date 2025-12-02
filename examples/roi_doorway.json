@@ -1,0 +1,10 @@
+{
+  "roi_points": [
+    [450, 100],
+    [830, 100],
+    [830, 720],
+    [450, 720]
+  ],
+  "coordinate_type": "absolute",
+  "description": "Doorway-shaped vertical ROI (380x620 pixels). Suitable for monitoring entrance/exit areas in 1280x720 resolution videos. Positioned in center-right of frame. Coordinates are in absolute pixels."
+}

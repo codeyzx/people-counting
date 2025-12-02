@@ -1,0 +1,15 @@
+# Core dependencies for Person Detection and Counting System
+
+# YOLOv8 implementation
+ultralytics>=8.0.0
+
+# Computer vision and video processing
+opencv-python>=4.8.0
+
+# Numerical operations
+numpy>=1.24.0
+
+# Optional: For testing (not required for production)
+# pytest>=7.4.0
+# hypothesis>=6.82.0
+# pytest-cov>=4.1.0
