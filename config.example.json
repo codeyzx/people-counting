@@ -1,0 +1,29 @@
+{
+  "onnx": {
+    "model_path": "models/yolov8s.onnx",
+    "providers": ["CPUExecutionProvider"],
+    "inter_op_num_threads": 4,
+    "intra_op_num_threads": 4,
+    "enable": true
+  },
+  "websocket": {
+    "url": "ws://localhost:8000/ws",
+    "reconnect_interval": 1.0,
+    "max_reconnect_interval": 60.0,
+    "buffer_size": 1000,
+    "enable": true
+  },
+  "video": {
+    "model_path": "models/yolov8s.pt",
+    "confidence_threshold": 0.5,
+    "tracking_distance": 50.0,
+    "font_scale": 0.6,
+    "line_thickness": 2,
+    "window_name": "Person Detection & Counting",
+    "roi_file": null,
+    "roi_color": [255, 0, 0],
+    "roi_thickness": 2,
+    "roi_alpha": 0.3
+  },
+  "source_id": "camera_01"
+}

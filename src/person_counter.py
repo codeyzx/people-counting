@@ -3,12 +3,14 @@ Person Detection and Counting Application.
 
 Main entry point for the person detection and counting system using YOLOv8.
 Supports flexible input from webcam or video files with optional video output.
+Enhanced with ONNX support and WebSocket integration.
 """
 
 import argparse
 import logging
 import sys
 import os
+import asyncio
 from pathlib import Path
 from .models import Config
 from .detector import PersonDetector
@@ -16,6 +18,9 @@ from .tracker import PersonTracker
 from .renderer import FrameRenderer
 from .video_processor import VideoProcessor
 from .roi_filter import ROIFilter
+from .config_manager import ConfigManager, SystemConfig
+from .detector_factory import create_detector, validate_model_file, log_detector_info
+from .websocket_publisher import WebSocketPublisher
 
 
 def setup_logging():
@@ -34,24 +39,24 @@ def parse_arguments():
         Parsed arguments namespace
     """
     parser = argparse.ArgumentParser(
-        description='Person Detection and Counting System using YOLOv8',
+        description='Person Detection and Counting System with ONNX and WebSocket support',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Use default webcam (device 0)
-  python person_counter.py
+  # Use default webcam with ONNX model
+  python person_counter.py --onnx-model models/yolov8s.onnx
   
-  # Use specific webcam device
-  python person_counter.py --source 1
+  # Use PyTorch model (fallback)
+  python person_counter.py --model models/yolov8s.pt
   
-  # Process video file
-  python person_counter.py --source video.mp4
+  # With WebSocket integration
+  python person_counter.py --ws-url ws://localhost:8000/ws
   
-  # Process video and save output
-  python person_counter.py --source video.mp4 --output result.avi
+  # Standalone mode (no WebSocket)
+  python person_counter.py --no-websocket
   
-  # Use custom confidence threshold
-  python person_counter.py --source video.mp4 --confidence 0.7
+  # Load from config file
+  python person_counter.py --config config.json
         """
     )
     
@@ -66,35 +71,75 @@ Examples:
         '--output',
         type=str,
         default=None,
-        help='Output video file path (optional). If not specified, video will not be saved.'
+        help='Output video file path (optional)'
     )
     
     parser.add_argument(
         '--confidence',
         type=float,
-        default=0.5,
-        help='Confidence threshold for detections (0.0 to 1.0, default: 0.5)'
+        default=None,
+        help='Confidence threshold for detections (0.0 to 1.0)'
     )
     
     parser.add_argument(
         '--model',
         type=str,
-        default='models/yolov8s.pt',
-        help='Path to YOLOv8 model weights file (default: yolov8s.pt)'
+        default=None,
+        help='Path to PyTorch YOLOv8 model weights file'
+    )
+    
+    parser.add_argument(
+        '--onnx-model',
+        type=str,
+        default=None,
+        help='Path to ONNX model file (preferred for Orange Pi 5)'
     )
     
     parser.add_argument(
         '--tracking-distance',
         type=float,
-        default=50.0,
-        help='Maximum distance for tracking people across frames (default: 50.0)'
+        default=None,
+        help='Maximum distance for tracking people across frames'
     )
     
     parser.add_argument(
         '--roi',
         type=str,
         default=None,
-        help='Path to ROI configuration JSON file (optional). If not specified, full frame detection is used.'
+        help='Path to ROI configuration JSON file (optional)'
+    )
+    
+    parser.add_argument(
+        '--ws-url',
+        type=str,
+        default=None,
+        help='WebSocket server URL (e.g., ws://localhost:8000/ws)'
+    )
+    
+    parser.add_argument(
+        '--no-websocket',
+        action='store_true',
+        help='Disable WebSocket integration (standalone mode)'
+    )
+    
+    parser.add_argument(
+        '--source-id',
+        type=str,
+        default=None,
+        help='Unique identifier for this camera/source'
+    )
+    
+    parser.add_argument(
+        '--config',
+        type=str,
+        default=None,
+        help='Path to JSON configuration file'
+    )
+    
+    parser.add_argument(
+        '--use-env',
+        action='store_true',
+        help='Load configuration from environment variables'
     )
     
     return parser.parse_args()
@@ -109,17 +154,20 @@ def validate_arguments(args):
     Raises:
         ValueError: If arguments are invalid
     """
-    # Validate confidence threshold
-    if not 0.0 <= args.confidence <= 1.0:
-        raise ValueError("Error: Confidence threshold must be between 0.0 and 1.0")
+    # Validate confidence threshold (only if provided)
+    if args.confidence is not None:
+        if not 0.0 <= args.confidence <= 1.0:
+            raise ValueError("Error: Confidence threshold must be between 0.0 and 1.0")
     
-    # Validate tracking distance
-    if args.tracking_distance <= 0:
-        raise ValueError("Error: Tracking distance must be positive")
+    # Validate tracking distance (only if provided)
+    if args.tracking_distance is not None:
+        if args.tracking_distance <= 0:
+            raise ValueError("Error: Tracking distance must be positive")
     
-    # Validate model file exists
-    if not os.path.exists(args.model):
-        raise FileNotFoundError(f"Error: Model file '{args.model}' not found")
+    # Validate model file exists (only if provided)
+    if args.model is not None:
+        if not os.path.exists(args.model):
+            raise FileNotFoundError(f"Error: Model file '{args.model}' not found")
     
     # Parse input source (webcam index or file path)
     try:
@@ -135,11 +183,13 @@ def validate_arguments(args):
         return args.source
 
 
-def main():
-    """Main application entry point."""
+async def async_main():
+    """Async main application entry point."""
     # Set up logging
     setup_logging()
     logger = logging.getLogger(__name__)
+    
+    websocket_publisher = None
     
     try:
         # Parse arguments
@@ -147,52 +197,89 @@ def main():
         
         logger.info("=" * 60)
         logger.info("Person Detection and Counting System")
+        logger.info("With ONNX and WebSocket Support")
         logger.info("=" * 60)
         
-        # Validate arguments
+        # Load configuration
+        if args.config:
+            logger.info(f"Loading configuration from file: {args.config}")
+            system_config = ConfigManager.load_from_file(args.config)
+        elif args.use_env:
+            logger.info("Loading configuration from environment variables")
+            system_config = ConfigManager.load_from_env()
+        else:
+            # Create default config and override with CLI args
+            system_config = SystemConfig()
+            
+            # Override with CLI arguments
+            if args.onnx_model:
+                system_config.onnx.model_path = args.onnx_model
+            if args.model:
+                system_config.video.model_path = args.model
+            if args.confidence is not None:
+                system_config.video.confidence_threshold = args.confidence
+            if args.tracking_distance is not None:
+                system_config.video.tracking_distance = args.tracking_distance
+            if args.ws_url:
+                system_config.websocket.url = args.ws_url
+            if args.no_websocket:
+                system_config.websocket.enable = False
+            if args.source_id:
+                system_config.source_id = args.source_id
+        
+        # Validate input source
         input_source = validate_arguments(args)
         
-        # Create configuration
-        config = Config(
-            model_path=args.model,
-            confidence_threshold=args.confidence,
-            tracking_distance=args.tracking_distance
-        )
-        
+        # Log configuration
         logger.info(f"Configuration:")
         logger.info(f"  Input source: {input_source}")
         logger.info(f"  Output path: {args.output if args.output else 'None (display only)'}")
-        logger.info(f"  Model: {config.model_path}")
-        logger.info(f"  Confidence threshold: {config.confidence_threshold}")
-        logger.info(f"  Tracking distance: {config.tracking_distance}")
+        logger.info(f"  Source ID: {system_config.source_id}")
+        logger.info(f"  ONNX model: {system_config.onnx.model_path}")
+        logger.info(f"  ONNX enabled: {system_config.onnx.enable}")
+        logger.info(f"  PyTorch model: {system_config.video.model_path}")
+        logger.info(f"  Confidence threshold: {system_config.video.confidence_threshold}")
+        logger.info(f"  Tracking distance: {system_config.video.tracking_distance}")
+        logger.info(f"  WebSocket enabled: {system_config.websocket.enable}")
+        if system_config.websocket.enable:
+            logger.info(f"  WebSocket URL: {system_config.websocket.url}")
         logger.info(f"  ROI file: {args.roi if args.roi else 'None (full frame)'}")
         
         # Initialize components
         logger.info("Initializing components...")
         
-        detector = PersonDetector(
-            model_path=config.model_path,
-            confidence_threshold=config.confidence_threshold
+        # Create detector with fallback
+        detector = create_detector(
+            onnx_model_path=system_config.onnx.model_path if system_config.onnx.enable else None,
+            pytorch_model_path=system_config.video.model_path,
+            confidence_threshold=system_config.video.confidence_threshold,
+            use_onnx=system_config.onnx.enable,
+            onnx_providers=system_config.onnx.providers,
+            inter_op_threads=system_config.onnx.inter_op_num_threads,
+            intra_op_threads=system_config.onnx.intra_op_num_threads
         )
         
+        # Log detector info
+        log_detector_info(detector)
+        
+        # Create tracker
         tracker = PersonTracker(
-            max_distance=config.tracking_distance
+            max_distance=system_config.video.tracking_distance
         )
         
+        # Create renderer
         renderer = FrameRenderer(
-            font_scale=config.font_scale,
-            thickness=config.line_thickness,
-            roi_color=config.roi_color,
-            roi_thickness=config.roi_thickness,
-            roi_alpha=config.roi_alpha
+            font_scale=system_config.video.font_scale,
+            thickness=system_config.video.line_thickness,
+            roi_color=system_config.video.roi_color,
+            roi_thickness=system_config.video.roi_thickness,
+            roi_alpha=system_config.video.roi_alpha
         )
         
         # Load ROI filter if specified
         roi_filter = None
         if args.roi:
             try:
-                # We'll load with frame dimensions later in VideoProcessor
-                # For now, create a placeholder that will be updated
                 roi_filter = ROIFilter.load_from_file(args.roi)
                 logger.info("ROI filter loaded successfully")
             except (FileNotFoundError, ValueError) as e:
@@ -200,15 +287,36 @@ def main():
                 logger.warning("Continuing with full frame detection")
                 roi_filter = None
         
+        # Initialize WebSocket publisher if enabled
+        if system_config.websocket.enable:
+            logger.info("Initializing WebSocket publisher...")
+            websocket_publisher = WebSocketPublisher(
+                url=system_config.websocket.url,
+                buffer_size=system_config.websocket.buffer_size,
+                reconnect_interval=system_config.websocket.reconnect_interval,
+                max_reconnect_interval=system_config.websocket.max_reconnect_interval
+            )
+            
+            # Try to connect
+            connected = await websocket_publisher.connect()
+            if connected:
+                logger.info("✓ WebSocket connected")
+            else:
+                logger.warning("WebSocket connection failed, will retry in background")
+        
+        # Create video processor
         processor = VideoProcessor(
             detector=detector,
             tracker=tracker,
             renderer=renderer,
-            roi_filter=roi_filter
+            roi_filter=roi_filter,
+            websocket_publisher=websocket_publisher,
+            source_id=system_config.source_id
         )
         
         # Process video
-        final_count = processor.process_video(
+        logger.info("Starting video processing...")
+        final_count = await processor.process_video_async(
             input_source=input_source,
             output_path=args.output
         )
@@ -217,6 +325,8 @@ def main():
         logger.info("=" * 60)
         logger.info(f"FINAL STATISTICS")
         logger.info(f"People in last frame: {final_count}")
+        if websocket_publisher:
+            logger.info(f"Buffered events: {websocket_publisher.get_buffer_size()}")
         logger.info("=" * 60)
         
         return 0
@@ -236,6 +346,20 @@ def main():
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         return 1
+        
+    finally:
+        # Cleanup WebSocket connection
+        if websocket_publisher:
+            logger.info("Closing WebSocket connection...")
+            try:
+                await websocket_publisher.disconnect()
+            except Exception as e:
+                logger.warning(f"Error during WebSocket cleanup: {e}")
+
+
+def main():
+    """Main entry point wrapper."""
+    return asyncio.run(async_main())
 
 
 if __name__ == "__main__":

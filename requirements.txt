@@ -9,7 +9,18 @@ opencv-python>=4.8.0
 # Numerical operations
 numpy>=1.24.0
 
+# ONNX Runtime for optimized inference (Orange Pi 5 support)
+onnx>=1.14.0
+onnxruntime>=1.16.0
+
+# WebSocket client for real-time communication
+websockets>=12.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
 # Optional: For testing (not required for production)
 # pytest>=7.4.0
 # hypothesis>=6.82.0
 # pytest-cov>=4.1.0
+# pytest-asyncio>=0.21.0

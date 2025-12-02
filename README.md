@@ -1,41 +1,55 @@
 # Person Detection and Counting System
 
-A clean, maintainable person detection and counting application using YOLOv8. The system detects and counts unique people in video streams from webcam or video files, with optional video output.
+A clean, maintainable person detection and counting application using YOLOv8 with ONNX optimization and WebSocket integration. The system detects and counts unique people in video streams from webcam or video files, optimized for embedded devices like Orange Pi 5.
 
 ## Features
 
 - **YOLOv8 Detection**: State-of-the-art person detection using YOLOv8
+- **ONNX Runtime Support**: Optimized inference for ARM processors (Orange Pi 5)
+- **WebSocket Integration**: Real-time event streaming to backend servers
 - **Region of Interest (ROI)**: Define custom polygonal detection areas to focus on specific zones
 - **Flexible Input**: Support for webcam devices or video files
 - **Person Tracking**: Centroid-based tracking to maintain unique IDs across frames
 - **Real-time Counting**: Displays current number of people in frame (count increases/decreases dynamically)
 - **Real-time Visualization**: Live preview with bounding boxes, person IDs, and ROI overlay
 - **Video Output**: Optional saving of processed video with visualizations
+- **Automatic Fallback**: Falls back to PyTorch if ONNX model unavailable
+- **Event Buffering**: Buffers events when WebSocket disconnected
+- **Auto-Reconnection**: Exponential backoff reconnection for WebSocket
 - **Clean Architecture**: Modular design with separation of concerns
 - **Comprehensive Logging**: Detailed logging for debugging and monitoring
 
 ## Architecture
 
-The system is organized into four main modules:
+The system is organized into modular components:
 
 ```
 src/
-├── models.py           # Data models (Detection, TrackedPerson, Config, ROIConfig)
-├── detector.py         # PersonDetector - YOLOv8 detection
-├── roi_filter.py       # ROIFilter - Region of Interest filtering
-├── tracker.py          # PersonTracker - Tracking and counting
-├── renderer.py         # FrameRenderer - Visualization
-├── video_processor.py  # VideoProcessor - Pipeline orchestration
-└── person_counter.py   # Main application entry point
+├── models.py              # Data models (Detection, TrackedPerson, DetectionEvent)
+├── detector.py            # PersonDetector - YOLOv8 PyTorch detection
+├── onnx_detector.py       # ONNXPersonDetector - ONNX Runtime detection
+├── detector_factory.py    # Factory for creating detectors with fallback
+├── model_converter.py     # Utility for converting PyTorch to ONNX
+├── roi_filter.py          # ROIFilter - Region of Interest filtering
+├── tracker.py             # PersonTracker - Tracking and counting
+├── renderer.py            # FrameRenderer - Visualization
+├── websocket_publisher.py # WebSocketPublisher - Event streaming
+├── config_manager.py      # ConfigManager - Configuration loading
+├── video_processor.py     # VideoProcessor - Pipeline orchestration
+└── person_counter.py      # Main application entry point
 ```
 
 ### Module Responsibilities
 
-- **Detection Module** (`detector.py`): Loads YOLOv8 model, detects people, filters by confidence
+- **Detection Module** (`detector.py`, `onnx_detector.py`): YOLOv8 detection with PyTorch or ONNX Runtime
+- **Detector Factory** (`detector_factory.py`): Creates appropriate detector with automatic fallback
+- **Model Converter** (`model_converter.py`): Converts YOLOv8 models to ONNX format
 - **ROI Filter Module** (`roi_filter.py`): Filters detections based on Region of Interest polygon
 - **Tracking Module** (`tracker.py`): Assigns unique IDs, tracks people across frames, maintains real-time count
 - **Visualization Module** (`renderer.py`): Draws bounding boxes, IDs, ROI overlay, and current count
-- **Video Processor** (`video_processor.py`): Orchestrates the processing pipeline
+- **WebSocket Publisher** (`websocket_publisher.py`): Streams detection events to backend with buffering
+- **Configuration Manager** (`config_manager.py`): Loads configuration from files or environment variables
+- **Video Processor** (`video_processor.py`): Orchestrates the processing pipeline with WebSocket integration
 - **Main Application** (`person_counter.py`): CLI interface and application entry point
 
 ## Installation
@@ -44,6 +58,7 @@ src/
 
 - Python 3.8 or higher
 - Webcam (optional, for webcam input)
+- For Orange Pi 5: ARM-compatible ONNX Runtime
 
 ### Setup
 
@@ -70,8 +85,54 @@ pip install -r requirements.txt
 ```
 
 4. Ensure YOLOv8 model weights are available:
-   - The `yolov8s.pt` file should be in the project root
+   - The `yolov8s.pt` file should be in the `models/` directory
    - If not present, it will be downloaded automatically on first run
+
+### ONNX Model Setup
+
+For optimized performance on Orange Pi 5 or other ARM devices:
+
+1. **Convert PyTorch model to ONNX:**
+```bash
+python -m src.model_converter models/yolov8s.pt models/yolov8s.onnx
+```
+
+2. **Verify ONNX model:**
+```bash
+python -m src.model_converter --verify-only models/yolov8s.onnx
+```
+
+3. **Custom conversion options:**
+```bash
+python -m src.model_converter models/yolov8s.pt models/yolov8s.onnx \
+  --input-size 640 640 \
+  --opset 12 \
+  --verbose
+```
+
+### Orange Pi 5 Deployment
+
+For optimal performance on Orange Pi 5:
+
+1. Install ONNX Runtime for ARM:
+```bash
+pip install onnxruntime
+```
+
+2. Use ONNX model with optimized settings:
+```bash
+python run.py \
+  --onnx-model models/yolov8s.onnx \
+  --source 0 \
+  --confidence 0.6
+```
+
+3. Or use configuration file (recommended):
+```bash
+cp config.example.json config.json
+# Edit config.json with your settings
+python run.py --config config.json
+```
 
 ## Usage
 
@@ -100,71 +161,113 @@ python src/person_counter.py
 python run.py [OPTIONS]
 ```
 
-Or:
-```bash
-python -m src [OPTIONS]
-```
-
-**Options:**
+**Core Options:**
 
 - `--source`: Video source (webcam index or video file path)
   - Default: `0` (default webcam)
   - Examples: `0`, `1`, `video.mp4`, `path/to/video.mp4`
 
 - `--output`: Output video file path (optional)
-  - If not specified, video will not be saved
   - Example: `output.avi`, `results/processed.avi`
 
 - `--confidence`: Confidence threshold for detections (0.0 to 1.0)
   - Default: `0.5`
-  - Higher values = fewer but more confident detections
-
-- `--model`: Path to YOLOv8 model weights file
-  - Default: `yolov8s.pt`
 
 - `--tracking-distance`: Maximum distance for tracking across frames
   - Default: `50.0` pixels
-  - Lower values = stricter tracking
 
 - `--roi`: Path to ROI configuration JSON file (optional)
-  - If not specified, full frame detection is used
   - Example: `examples/roi_rectangle.json`
+
+**Model Options:**
+
+- `--model`: Path to PyTorch YOLOv8 model weights file
+  - Default: `models/yolov8s.pt`
+
+- `--onnx-model`: Path to ONNX model file (preferred for Orange Pi 5)
+  - Example: `models/yolov8s.onnx`
+
+**WebSocket Options:**
+
+- `--ws-url`: WebSocket server URL
+  - Example: `ws://localhost:8000/ws`
+
+- `--no-websocket`: Disable WebSocket integration (standalone mode)
+
+- `--source-id`: Unique identifier for this camera/source
+  - Default: `camera_01`
+
+**Configuration Options:**
+
+- `--config`: Path to JSON configuration file
+  - Example: `config.json`
+
+- `--use-env`: Load configuration from environment variables
 
 - `--help`: Show help message and exit
 
 ### Examples
 
-**Use default webcam:**
+**Basic Examples:**
+
 ```bash
+# Use default webcam
 python run.py
-```
 
-**Use specific webcam device:**
-```bash
+# Use specific webcam device
 python run.py --source 1
-```
 
-**Process video file:**
-```bash
+# Process video file
 python run.py --source test.mp4
-```
 
-**Process video and save output:**
-```bash
+# Process video and save output
 python run.py --source test.mp4 --output result.avi
-```
 
-**Use custom confidence threshold:**
-```bash
+# Use custom confidence threshold
 python run.py --source test.mp4 --confidence 0.7
 ```
 
-**Combine multiple options:**
+**ONNX Examples:**
+
 ```bash
-python run.py --source test.mp4 --output result.avi --confidence 0.6 --tracking-distance 40
+# Use ONNX model (optimized for Orange Pi 5)
+python run.py --onnx-model models/yolov8s.onnx --source 0
+
+# ONNX with fallback to PyTorch
+python run.py --onnx-model models/yolov8s.onnx --model models/yolov8s.pt
+
+# Standalone mode (no WebSocket)
+python run.py --onnx-model models/yolov8s.onnx --no-websocket
 ```
 
-**Use ROI (Region of Interest):**
+**WebSocket Examples:**
+
+```bash
+# With WebSocket integration
+python run.py --ws-url ws://localhost:8000/ws --source 0
+
+# Custom source ID for multiple cameras
+python run.py --ws-url ws://localhost:8000/ws --source-id camera_entrance
+
+# WebSocket with ONNX
+python run.py \
+  --onnx-model models/yolov8s.onnx \
+  --ws-url ws://backend.example.com/ws \
+  --source-id camera_01
+```
+
+**Configuration File Examples:**
+
+```bash
+# Use configuration file
+python run.py --config config.json --source 0
+
+# Load from environment variables
+python run.py --use-env --source 0
+```
+
+**ROI Examples:**
+
 ```bash
 # Use rectangular ROI
 python run.py --source test.mp4 --roi examples/roi_rectangle.json
@@ -174,6 +277,19 @@ python run.py --source test.mp4 --roi examples/roi_corridor.json --output result
 
 # Use doorway ROI for entrance monitoring
 python run.py --source 0 --roi examples/roi_doorway.json
+```
+
+**Complete Example (Orange Pi 5 Production):**
+
+```bash
+python run.py \
+  --onnx-model models/yolov8s.onnx \
+  --model models/yolov8s.pt \
+  --ws-url wss://backend.example.com/ws \
+  --source-id camera_entrance \
+  --source 0 \
+  --confidence 0.6 \
+  --roi examples/roi_doorway.json
 ```
 
 ### Controls
@@ -287,22 +403,121 @@ To create your own ROI configuration:
 
 ## Configuration
 
-Default configuration can be modified in `src/models.py`:
+### Configuration File
 
-```python
-@dataclass
-class Config:
-    model_path: str = "models/yolov8s.pt"
-    confidence_threshold: float = 0.5
-    tracking_distance: float = 50.0
-    font_scale: float = 0.6
-    line_thickness: int = 2
-    window_name: str = "Person Detection & Counting"
-    roi_file: Optional[str] = None
-    roi_color: Tuple[int, int, int] = (255, 0, 0)  # Blue (BGR)
-    roi_thickness: int = 2
-    roi_alpha: float = 0.3  # Transparency
+Create a `config.json` file (see `config.example.json`):
+
+```json
+{
+  "onnx": {
+    "model_path": "models/yolov8s.onnx",
+    "providers": ["CPUExecutionProvider"],
+    "inter_op_num_threads": 4,
+    "intra_op_num_threads": 4,
+    "enable": true
+  },
+  "websocket": {
+    "url": "ws://localhost:8000/ws",
+    "reconnect_interval": 1.0,
+    "max_reconnect_interval": 60.0,
+    "buffer_size": 1000,
+    "enable": true
+  },
+  "video": {
+    "model_path": "models/yolov8s.pt",
+    "confidence_threshold": 0.5,
+    "tracking_distance": 50.0
+  },
+  "source_id": "camera_01"
+}
 ```
+
+### Environment Variables
+
+Create a `.env` file (see `.env.example`):
+
+```bash
+# ONNX Configuration
+ONNX_MODEL_PATH=models/yolov8s.onnx
+ONNX_ENABLE=true
+ONNX_PROVIDERS=CPUExecutionProvider
+ONNX_THREADS=4
+
+# WebSocket Configuration
+WS_URL=ws://localhost:8000/ws
+WS_ENABLE=true
+WS_BUFFER_SIZE=1000
+
+# Source Configuration
+SOURCE_ID=camera_01
+
+# Video/Detection Configuration
+MODEL_PATH=models/yolov8s.pt
+CONFIDENCE=0.5
+TRACKING_DISTANCE=50.0
+```
+
+Then run with:
+```bash
+python run.py --use-env --source 0
+```
+
+## WebSocket Integration
+
+### Event Format
+
+The system sends detection events in JSON format:
+
+```json
+{
+  "timestamp": "2024-12-02T10:30:45.123Z",
+  "source_id": "camera_01",
+  "frame_number": 1234,
+  "event_type": "update",
+  "current_count": 3,
+  "tracked_persons": [
+    {
+      "person_id": 1,
+      "bbox": [100, 150, 200, 400],
+      "confidence": 0.92,
+      "centroid": [150.0, 275.0]
+    }
+  ],
+  "metadata": {
+    "fps": 15.3,
+    "inference_time_ms": 45.2
+  }
+}
+```
+
+### Event Types
+
+- **update**: Count changed or periodic update
+- **entry**: New person entered the frame
+- **exit**: Person left the frame
+- **lifecycle**: System started/stopped/error
+
+### Lifecycle Events
+
+```json
+{
+  "timestamp": "2024-12-02T10:30:00.000Z",
+  "source_id": "camera_01",
+  "event_type": "lifecycle",
+  "lifecycle_event": "started",
+  "metadata": {
+    "model_type": "onnx",
+    "model_path": "models/yolov8s.onnx"
+  }
+}
+```
+
+### Features
+
+- **Auto-Reconnection**: Exponential backoff reconnection on disconnect
+- **Event Buffering**: Buffers up to 1000 events when disconnected
+- **FIFO Buffer**: Oldest events dropped when buffer full
+- **Graceful Degradation**: Detection continues even if WebSocket fails
 
 ## Troubleshooting
 
@@ -317,19 +532,36 @@ class Config:
 - Ensure the video format is supported by OpenCV (MP4, AVI, etc.)
 
 ### Model file not found
-- Ensure `yolov8s.pt` is in the project root
-- Or specify the correct path with `--model` option
-- The model will be downloaded automatically on first run if using ultralytics
+- Ensure model files are in the `models/` directory
+- For PyTorch: `models/yolov8s.pt`
+- For ONNX: `models/yolov8s.onnx`
+- Convert PyTorch to ONNX if needed (see ONNX Model Setup)
+
+### ONNX Runtime issues
+- **"onnxruntime not installed"**: Run `pip install onnxruntime`
+- **"Failed to load ONNX model"**: Verify model file is valid with `--verify-only`
+- **"Provider not available"**: Check available providers, system will fallback to CPU
+- **Slow inference**: Ensure using correct providers for your hardware
+
+### WebSocket connection issues
+- **"Failed to connect"**: Verify WebSocket server is running and URL is correct
+- **"websockets library not installed"**: Run `pip install websockets`
+- **Connection keeps dropping**: Check network stability, system will auto-reconnect
+- **Events not received**: Check buffer size, may be full and dropping old events
+- Use `--no-websocket` flag to run in standalone mode for testing
 
 ### Low FPS / Slow processing
-- Use a smaller model (yolov8n.pt instead of yolov8s.pt)
+- Use ONNX model instead of PyTorch (significant speedup on ARM)
+- Use a smaller model (yolov8n.pt/onnx instead of yolov8s.pt/onnx)
 - Increase confidence threshold to reduce detections
-- Process every N-th frame instead of every frame
+- Reduce ONNX thread count if CPU is overloaded
+- On Orange Pi 5: Use 4-6 threads for optimal performance
 
 ### Memory issues
 - Close other applications
 - Use a smaller model
 - Reduce video resolution
+- Reduce WebSocket buffer size in configuration
 
 ### ROI not working
 - Verify the JSON file path is correct
@@ -339,25 +571,33 @@ class Config:
 - For normalized coordinates, ensure values are between 0.0 and 1.0
 - Check the log output for specific error messages
 
-### ROI configuration errors
-- **"ROI polygon must have at least 3 points"**: Add more coordinate points to your polygon
-- **"Invalid JSON"**: Check for syntax errors (missing commas, brackets, quotes)
-- **"ROI configuration file not found"**: Verify the file path is correct
-- If ROI loading fails, the system will automatically fall back to full frame detection
+### Configuration issues
+- **"Invalid JSON"**: Check configuration file syntax
+- **"Invalid confidence threshold"**: Must be between 0.0 and 1.0
+- **"Invalid WebSocket URL"**: Must start with ws:// or wss://
+- System will use default values for invalid configurations
 
 ## Dependencies
 
+Core dependencies:
 - **ultralytics**: YOLOv8 implementation
 - **opencv-python**: Video I/O and visualization
 - **numpy**: Array operations
+- **onnx**: ONNX model format support
+- **onnxruntime**: Optimized inference engine
+- **websockets**: WebSocket client for real-time communication
+- **python-dotenv**: Environment variable management
 
 See `requirements.txt` for complete list with versions.
 
 ## Performance
 
 - **Model**: YOLOv8s (small) - balance between speed and accuracy
+- **ONNX Optimization**: 2-3x faster inference on ARM processors
+- **Orange Pi 5**: 10-15 FPS with ONNX (vs 3-5 FPS with PyTorch)
 - **Processing**: Real-time capable on modern hardware
 - **Tracking**: Centroid-based tracking with configurable distance threshold
+- **WebSocket**: Minimal overhead with event buffering
 
 ## License
 
